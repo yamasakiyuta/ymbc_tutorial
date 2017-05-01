@@ -143,6 +143,16 @@ int main(int argc, char **argv) {
         //printf("dist = %g\n",dist);
         if(dist<min_dist){
             min_dist = dist;
+	    //obstacle direction
+	    if(i<=0 && i<urg_data->size/3){
+		printf("right\n");
+	    }
+	    else if(i<=urg_data->size/3 && i<urg_data->size*2/3){
+		printf("front\n");
+	    }
+	    else if(i<=urg_data->size*2/3 && i<urg_data->size){
+		printf("left\n");
+	    }
         }
         
       }
