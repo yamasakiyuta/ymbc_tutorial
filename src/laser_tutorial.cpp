@@ -144,7 +144,6 @@ int main(int argc, char **argv) {
         if(dist<min_dist){
             min_dist = dist;
         }
-        
       }
       if(min_dist<robot_radius){
           printf("[CAUTION!] min_dist = %g\n",min_dist);
