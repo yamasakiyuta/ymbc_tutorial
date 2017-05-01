@@ -78,6 +78,7 @@ int main(int argc, char **argv) {
   S2Param_t urg_param;  /* parameter */
   double x_GL, y_GL, theta_GL;
   double robot_radius = 0.35;
+  int phase = 1;
 
   /* set Ctrl-c function */
   signal(SIGINT, ctrl_c);
@@ -132,7 +133,8 @@ int main(int argc, char **argv) {
         if(urg_data->data[i] < 20) { /* error code */
           continue;
         }
-        rad_FS = (2 * M_PI / urg_param.step_resolution) * (i + urg_param.step_min - urg_param.step_front);
+        rad_FS = (2 * M_PI / urg_param.step_resolution) * 
+                    (i + urg_param.step_min - urg_param.step_front);
         x_FS = urg_data->data[i] * cos(rad_FS) / 1000.0;
         y_FS = urg_data->data[i] * sin(rad_FS) / 1000.0;
         //fprintf(fp, "%f %f\n", y_FS, x_FS);
@@ -152,6 +154,24 @@ int main(int argc, char **argv) {
       else{
           printf("[safe] min_dist = %g\n",min_dist);
           //Spur_vel(0.2,0);
+          switch(phase){
+              case 1:
+                  printf("aproaching wall\n");
+                  break;
+              case 2:
+                  printf("run along wall\n");
+                  break;
+              case 3:
+                  printf("pole\n");
+                  break;
+              case 4:
+                  printf("garage\n");
+                  break;
+              default:
+                  printf("others\n");
+                  break;
+          }
+
       }
       //fputs("e\n", fp);
 
