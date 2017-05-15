@@ -16,9 +16,10 @@
 #include <pcl/filters/voxel_grid.h>  
 #include <pcl/kdtree/kdtree.h>  
 #include <pcl/sample_consensus/method_types.h>  
-#include <pcl/sample_consensus/model_types.h>  
-#include <pcl/segmentation/sac_segmentation.h>  
-#include <pcl/segmentation/extract_clusters.h>  
+//#include <pcl/sample_consensus/model_types.h>  
+//#include <pcl/segmentation/sac_segmentation.h>  
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/common/centroid.h>
 //RPP
 #include"scip2awd.h" //ロボ研のURGドライバ(NewPCでインストール済み)
 
@@ -110,7 +111,7 @@ int main( int argc , char **argv )
 
             S2Sdd_End(&urgBuf); //バッファのアンロック(読み込み終了)
 
-            /*pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f (new pcl::PointCloud<pcl::PointXYZ>);
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f (new pcl::PointCloud<pcl::PointXYZ>);
             // Create the filtering object: downsample the dataset using a leaf size of 1cm
             pcl::VoxelGrid<pcl::PointXYZ> vg;
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
@@ -120,7 +121,7 @@ int main( int argc , char **argv )
             std::cout << "PointCloud after filtering has: " << cloud_filtered->points.size ()  << " data points." << std::endl;
 
             // Create the segmentation object for the planar model and set all the parameters
-            pcl::SACSegmentation<pcl::PointXYZ> seg;
+            /*pcl::SACSegmentation<pcl::PointXYZ> seg;
             pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
             pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane (new pcl::PointCloud<pcl::PointXYZ> ());
@@ -161,37 +162,61 @@ int main( int argc , char **argv )
 */
             // Creating the KdTree object for the search method of the extraction
             pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
-            tree->setInputCloud (cloud2);
+            //tree->setInputCloud (cloud2);
+            tree->setInputCloud (cloud_filtered);
 
             std::vector<pcl::PointIndices> cluster_indices;
             pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-            ec.setClusterTolerance (0.2); // 2cm
+            ec.setClusterTolerance (0.05); // 20cm
             ec.setMinClusterSize (10);
             ec.setMaxClusterSize (700);
             ec.setSearchMethod (tree);
-            //ec.setInputCloud (cloud_filtered);
-            ec.setInputCloud (cloud2);
+            ec.setInputCloud (cloud_filtered);
+            //ec.setInputCloud (cloud2);
             ec.extract (cluster_indices);
-          int j = 0;  
-          float colors[6][3] ={{255, 0, 0}, {0,255,0}, {0,0,255}, {255,255,0}, {0,255,255}, {255,0,255}};  
-          pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);  
-          pcl::copyPointCloud(*cloud2, *cloud_cluster);  
-          for(std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it){  
-              for(std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); pit++){  
-                  //<span class="Apple-tab-span" style="white-space: pre;"> </span>cloud_cluster->points[*pit].r = colors[j%6][0];  
-                  //<span class="Apple-tab-span" style="white-space: pre;"> </span>cloud_cluster->points[*pit].g = colors[j%6][1];  
-                  //<span class="Apple-tab-span" style="white-space: pre;"> </span>cloud_cluster->points[*pit].b = colors[j%6][2];  
-                  cloud_cluster->points[*pit].r = colors[j%6][0];  
-                  cloud_cluster->points[*pit].g = colors[j%6][1];  
-                  cloud_cluster->points[*pit].b = colors[j%6][2];  
-              }  
-              std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size () << " data points." << std::endl;  
-              //std::stringstream ss;  
-              //ss << "cloud_cluster_" << j << ".pcd";  
-              //writer.write<pcl::PointXYZRGB> (ss.str (), *cloud_cluster, false); 
-              j++;  
-          }
-          viewer.showCloud (cloud_cluster);   
+
+
+            // Create and accumulate points
+            pcl::PointCloud<pcl::PointXYZRGB> cloud_centroid; 
+
+            int j = 0;  
+            float colors[6][3] ={{255, 0, 0}, {0,255,0}, {0,0,255}, {255,255,0}, {0,255,255}, {255,0,255}};  
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);  
+            //pcl::copyPointCloud(*cloud2, *cloud_cluster);  
+            pcl::copyPointCloud(*cloud_filtered, *cloud_cluster);  
+            for(std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it){  
+                pcl::CentroidPoint<pcl::PointXYZ> centroid;
+                for(std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); pit++){  
+                    //<span class="Apple-tab-span" style="white-space: pre;"> </span>cloud_cluster->points[*pit].r = colors[j%6][0];  
+                    //<span class="Apple-tab-span" style="white-space: pre;"> </span>cloud_cluster->points[*pit].g = colors[j%6][1]; 
+                    //<span class="Apple-tab-span" style="white-space: pre;"> </span>cloud_cluster->points[*pit].b = colors[j%6][2];  
+                    cloud_cluster->points[*pit].r = colors[j%6][0];  
+                    cloud_cluster->points[*pit].g = colors[j%6][1];  
+                    cloud_cluster->points[*pit].b = colors[j%6][2];  
+                    double cluster_centroid_x = cloud_cluster->points[*pit].x;
+                    double cluster_centroid_y = cloud_cluster->points[*pit].y;
+                    double cluster_centroid_z = cloud_cluster->points[*pit].z;
+                    centroid.add (pcl::PointXYZ (cluster_centroid_x, cluster_centroid_y, cluster_centroid_z));
+                }
+                // Fetch centroid using `get()`
+                pcl::PointXYZRGB c1;
+                c1.r = colors[0][0];
+
+                centroid.get (c1);
+                pcl::PointCloud<pcl::PointXYZRGB> cloud_tmp;
+                /*cloud_tmp.points[0].x=c1.x;
+                cloud_tmp.points[0].y=c1.y;
+                cloud_tmp.points[0].z=c1.z;*/
+                //cloud_centroid += cloud_tmp;
+                cloud_centroid.push_back(c1);;
+                std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size () << " data points." << std::endl;  
+                //std::stringstream ss;  
+                //ss << "cloud_cluster_" << j << ".pcd";  
+                //writer.write<pcl::PointXYZRGB> (ss.str (), *cloud_cluster, false); 
+                j++;  
+            }
+            //viewer.showCloud (cloud_cluster);   
+            viewer.showCloud (cloud_centroid.makeShared());   
 
           //viewer.showCloud( cloud.makeShared() ); //作成したcloudを表示 makeSharedメソッドを使うとpcl::PointCloud<pcl::PointXYZ>::Ptrを引数として取る関数にアクセスできる
 
