@@ -17,6 +17,13 @@ message(STATUS "CMAKE_C_FLAGS_RELEASE: ${CMAKE_C_FLAGS_RELEASE}")
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "CMAKE_CXX_FLAGS_RELEASE: ${CMAKE_CXX_FLAGS_RELEASE}")
 
+# find pcl package
+find_package(PCL 1.6 REQUIRED)
+
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 #include_directories(/usr/local/include/mylib1 /usr/local/include/mylib2)
 #link_directories(/usr/local/lib/mylib1 /usr/local/lib/mylib2)
 #add_definitions(-DMYDEFINITION1 -DMYDEFINITION2)
@@ -30,3 +37,6 @@ target_link_libraries(spur_tutorial_ver2.0 ypspur)
 
 add_executable(laser_tutorial src/laser_tutorial.cpp)
 target_link_libraries(laser_tutorial ypspur scip2awd pthread m)
+
+add_executable(ex_final src/ex_final.cpp)
+target_link_libraries(ex_final ypspur scip2awd pthread m ${PCL_LIBRARIES})
