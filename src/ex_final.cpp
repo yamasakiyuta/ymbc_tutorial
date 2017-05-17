@@ -25,7 +25,8 @@
 #include<scip2awd.h> //ロボ研のURGドライバ(NewPCでインストール済み)
 #include<ypspur.h>
 
-const static int start_phase = 0;
+const static int start_phase = 6;
+const static int debug_laser = 1;
 const static double leaf_size = 0.01; //1cm
 const static double cluster_tolerance = 0.1; //10cm
 const static int min_cluster_size = 10;
@@ -37,6 +38,11 @@ const static double wall_offset = 0.65;
 const static int right = 119;
 const static int front = 341;
 const static int left = 511;
+const static int cnt_limit = 100;
+const static double bottle_search_range_x_max = 1.0;
+const static double bottle_search_range_x_min = 0.0;
+const static double bottle_search_range_y_max = 0.0;
+const static double bottle_search_range_y_min = -1.0;
 
 //--------------------------------------------
 //ctrl-cで停止させるための記述
@@ -84,6 +90,20 @@ double distance(double *x, double *y, int i, int j){
     return sqrt(pow(x[i]-x[j],2.0) + pow(y[i]-y[j],2.0));
 }
 
+int max_of_array(int n[], int len){
+  int i, max, ans;
+
+  max = n[0];
+  ans = 0;
+  for (i=1; i<len; i++) {
+    if (max < n[i]){
+         max = n[i];
+         ans = i;
+    }
+  }
+  return ans;
+}
+
 //--------------------------------------------
 //本体
 //--------------------------------------------
@@ -107,6 +127,12 @@ int main( int argc , char **argv )
     int ojama_counter=0;
     int ojama_r=0;
     int ojama_l=0;
+    int bottle_counter=0;
+    int goal=0;
+    double sum=0;
+    double bottle_ave=0;
+    int loop_cnt=0;
+    int b_cnt[4]={0};
 
     signal(SIGINT, ctrl_c);	//ctrl-c停止の設定
     
@@ -137,7 +163,9 @@ int main( int argc , char **argv )
     fprintf(stdout, "scan started\n");
 
     /* init spur and set param */
-    if(init_spur())return -1;
+    if(!debug_laser){
+        if(init_spur())return -1;
+    }
 
     //+++++++
     //PCL関係変数の宣言
@@ -145,6 +173,7 @@ int main( int argc , char **argv )
     //PointCloudの宣言
     pcl::PointCloud<pcl::PointXYZ> cloud;//URGの点群を保存するクラウドを定義
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>);//URGの点群を保存するクラウドを定義
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_bottle(new pcl::PointCloud<pcl::PointXYZRGB>);  
     //CloudViewerの宣言
     pcl::visualization::CloudViewer viewer("PCL URG Viewer");  //クラウド表示のためのクラスを定義
 
@@ -175,10 +204,10 @@ int main( int argc , char **argv )
                 pcl::PointXYZ p;	//１つの点pを定義
                 p.x = (double)urg_data->data[i] * cos(rad) / 1000;	//点pのX座標をURGのデータから計算(1000で割ってミリ表記からメートル表記に直す)
                 p.y = (double)urg_data->data[i] * sin(rad) / 1000;	//点pのY座標をURGのデータから計算(1000で割ってミリ表記からメートル表記に直す)
-                if(urg_data->data[i]==0){
+                /*if(urg_data->data[i]==0){
                     p.x=20*cos(rad)/fabs(cos(rad));
                     p.y=20*sin(rad)/fabs(sin(rad));
-                }
+                }*/
                 p.z = 0.0; //点pのZ座標を計算(常に0としておく)
                 x_FS[i] = p.x;
                 y_FS[i] = p.y;
@@ -385,18 +414,62 @@ int main( int argc , char **argv )
                     phase++;
 
                     break;
+                case 6:
+                    printf("counting BOTTLES\n");
+                    //printf("%d\n",cloud_centroid->points.size());
+                    cloud_bottle->clear();
+                    if(loop_cnt<cnt_limit){
+                        for(k=0;k<cloud_centroid->points.size();k++){
+                            if(cloud_centroid->points[k].x<bottle_search_range_x_max 
+                                && cloud_centroid->points[k].x>bottle_search_range_x_min 
+                                && cloud_centroid->points[k].y<bottle_search_range_y_max
+                                && cloud_centroid->points[k].y>bottle_search_range_y_min){ 
+                                
+                                bottle_counter++;
+                                cloud_bottle->points.push_back(cloud_centroid->points[k]);
+                                sum+=bottle_counter;
+                                loop_cnt++;
+                            
+                            }
+                        }
+                        if(bottle_counter==0)b_cnt[0]++;
+                        else if(bottle_counter==1)b_cnt[1]++;
+                        else if(bottle_counter==2)b_cnt[2]++;
+                        else if(bottle_counter==3)b_cnt[3]++;
+                    }
+                    else{
+                        bottle_ave=sum/loop_cnt;
+                        if(max_of_array(b_cnt,4)%2==0){
+                            goal=0;
+                        }
+                        else{
+                            goal=1;
+                        }
+                        loop_cnt=0;
+                        sum=0;
+                        bottle_counter=0;
+                        phase++;
+                        printf("%g\n", bottle_ave);
+                        break;
+                    }
+                    printf("%d bottles\n", bottle_counter);
+                    bottle_counter=0;
+                    //phase++;
+
+                    break;
                 default:
-                    printf("others\n");
-                    Spur_stop();
+                    printf("others:%d\n",goal);
+                    if(!debug_laser)Spur_stop();
                     cmd_vel.x = 0;
                     cmd_vel.w = 0;
                     break;
             }
             //std::cout << j << " : " << cloud_cluster->width << std::endl;
-            viewer.showCloud (cloud_cluster); 
-            //viewer.showCloud (cloud_centroid.makeShared());   
+            //viewer.showCloud (cloud_cluster); 
+            //viewer.showCloud (cloud_centroid);   
+            viewer.showCloud (cloud_bottle); 
 
-            Spur_vel(cmd_vel.x, cmd_vel.w);
+            if(!debug_laser)Spur_vel(cmd_vel.x, cmd_vel.w);
         }
 
         else if( ret == -1 ) //戻り値が-1：エラー
