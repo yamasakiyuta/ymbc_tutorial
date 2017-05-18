@@ -104,6 +104,11 @@ int max_of_array(int n[], int len){
   return ans;
 }
 
+int sei_fu(double a){
+    if(a<0)return -1;
+    else return 1;
+}
+
 //--------------------------------------------
 //本体
 //--------------------------------------------
@@ -204,10 +209,10 @@ int main( int argc , char **argv )
                 pcl::PointXYZ p;	//１つの点pを定義
                 p.x = (double)urg_data->data[i] * cos(rad) / 1000;	//点pのX座標をURGのデータから計算(1000で割ってミリ表記からメートル表記に直す)
                 p.y = (double)urg_data->data[i] * sin(rad) / 1000;	//点pのY座標をURGのデータから計算(1000で割ってミリ表記からメートル表記に直す)
-                /*if(urg_data->data[i]==0){
-                    p.x=20*cos(rad)/fabs(cos(rad));
-                    p.y=20*sin(rad)/fabs(sin(rad));
-                }*/
+                if(urg_data->data[i]==0){ //遠すぎてレーザの点が取れなければ20mにする
+                    p.x=20*sei_fu(cos(rad));
+                    p.y=20*sei_fu(sin(rad));
+                }
                 p.z = 0.0; //点pのZ座標を計算(常に0としておく)
                 x_FS[i] = p.x;
                 y_FS[i] = p.y;
@@ -404,12 +409,15 @@ int main( int argc , char **argv )
                     while( !Spur_over_line_GL(1.2, 0.0, 0.0) )
                     usleep( 5000 );
                     
-                    Spur_circle_GL( 1.2, -0.80, -0.5 );
+                    Spur_spin_GL( -M_PI/2 );
+                    while( !Spur_near_ang_GL(-M_PI/2, M_PI/18.0) )
+                    usleep( 5000 );
+                    /*Spur_circle_GL( 1.2, -0.80, -0.5 );
                     while( !Spur_over_line_GL( 1.2, -0.80, -M_PI/2 ) )
                     usleep( 5000 );
                     while( !Spur_over_line_GL( 1.2, -0.80, M_PI ) )
                     usleep( 5000 );
-                    
+                    */
                     Spur_stop();
                     phase++;
 
@@ -436,9 +444,74 @@ int main( int argc , char **argv )
                         else if(bottle_counter==1)b_cnt[1]++;
                         else if(bottle_counter==2)b_cnt[2]++;
                         else if(bottle_counter==3)b_cnt[3]++;
+                        printf("%d bottles\n", bottle_counter);
+                        bottle_counter=0;
                     }
                     else{
-                        bottle_ave=sum/loop_cnt;
+                        /*bottle_ave=sum/loop_cnt;
+                        printf("%g\n", bottle_ave);
+                        if(max_of_array(b_cnt,4)%2==0){
+                            goal=0;
+                        }
+                        else{
+                            goal=1;
+                        }
+                        sum=0;
+                        bottle_counter=0;*/
+                        loop_cnt=0;
+                        phase++;
+                        break;
+                    }
+
+                    break;
+                case 7:
+                    printf("searching BOTTLES\n");
+                    
+                    Spur_line_GL( 1.2, 1.0, -M_PI/2 );
+                    while( !Spur_over_line_GL(1.2, 1.0, -M_PI/2) )
+                    usleep( 5000 );
+                    
+                    Spur_spin_GL( -M_PI/2 );
+                    while( !Spur_near_ang_GL(-M_PI, M_PI/18.0) )
+                    usleep( 5000 );
+                    /*Spur_circle_GL( 1.2, -0.80, -0.5 );
+                    while( !Spur_over_line_GL( 1.2, -0.80, -M_PI/2 ) )
+                    usleep( 5000 );
+                    while( !Spur_over_line_GL( 1.2, -0.80, M_PI ) )
+                    usleep( 5000 );
+                    */
+                    Spur_stop();
+                    phase++;
+
+                    break;
+                case 8:
+                    printf("counting BOTTLES\n");
+                    //printf("%d\n",cloud_centroid->points.size());
+                    cloud_bottle->clear();
+                    if(loop_cnt<cnt_limit){
+                        for(k=0;k<cloud_centroid->points.size();k++){
+                            if(cloud_centroid->points[k].x<bottle_search_range_x_max 
+                                && cloud_centroid->points[k].x>bottle_search_range_x_min 
+                                && cloud_centroid->points[k].y<bottle_search_range_y_max
+                                && cloud_centroid->points[k].y>bottle_search_range_y_min){ 
+                                
+                                bottle_counter++;
+                                cloud_bottle->points.push_back(cloud_centroid->points[k]);
+                                sum+=bottle_counter;
+                                loop_cnt++;
+                            
+                            }
+                        }
+                        if(bottle_counter==0)b_cnt[0]++;
+                        else if(bottle_counter==1)b_cnt[1]++;
+                        else if(bottle_counter==2)b_cnt[2]++;
+                        else if(bottle_counter==3)b_cnt[3]++;
+                        printf("%d bottles\n", bottle_counter);
+                        bottle_counter=0;
+                    }
+                    else{
+                        //bottle_ave=sum/loop_cnt;
+                        //printf("%g\n", bottle_ave);
                         if(max_of_array(b_cnt,4)%2==0){
                             goal=0;
                         }
@@ -447,14 +520,26 @@ int main( int argc , char **argv )
                         }
                         loop_cnt=0;
                         sum=0;
-                        bottle_counter=0;
+                        bottle_counter=max_of_array(b_cnt,4);
+                    
+                        Spur_line_GL( 0, 1.0, -M_PI );
+                        while( !Spur_over_line_GL(0, 1.0, -M_PI) )
+                        usleep( 5000 );
+                    
                         phase++;
-                        printf("%g\n", bottle_ave);
+                    
                         break;
                     }
-                    printf("%d bottles\n", bottle_counter);
-                    bottle_counter=0;
-                    //phase++;
+
+                    break;
+                case 9:
+                    if(goal==0)
+                    printf("There are %d bottles, so GOAL is [A]\n",bottle_counter);
+                    else
+                    printf("There are %d bottles, so GOAL is [B]\n",bottle_counter);
+                    
+                    cmd_vel.x = 0;
+                    cmd_vel.w = 0;
 
                     break;
                 default:
@@ -462,6 +547,7 @@ int main( int argc , char **argv )
                     if(!debug_laser)Spur_stop();
                     cmd_vel.x = 0;
                     cmd_vel.w = 0;
+
                     break;
             }
             //std::cout << j << " : " << cloud_cluster->width << std::endl;
