@@ -25,8 +25,8 @@
 #include<scip2awd.h> //ロボ研のURGドライバ(NewPCでインストール済み)
 #include<ypspur.h>
 
-const static int start_phase = 6;
-const static int debug_laser = 1;
+const static int start_phase = 1;
+const static int debug_laser = 0;
 const static double leaf_size = 0.01; //1cm
 const static double cluster_tolerance = 0.1; //10cm
 const static int min_cluster_size = 10;
@@ -39,10 +39,10 @@ const static int right = 119;
 const static int front = 341;
 const static int left = 511;
 const static int cnt_limit = 100;
-const static double bottle_search_range_x_max = 1.0;
+const static double bottle_search_range_x_max = 1.5;
 const static double bottle_search_range_x_min = 0.0;
 const static double bottle_search_range_y_max = 0.0;
-const static double bottle_search_range_y_min = -1.0;
+const static double bottle_search_range_y_min = -1.5;
 
 //--------------------------------------------
 //ctrl-cで停止させるための記述
@@ -86,8 +86,12 @@ int init_spur(void){
     return 0;
 }
 
-double distance(double *x, double *y, int i, int j){
+double distance_array(double *x, double *y, int i, int j){
     return sqrt(pow(x[i]-x[j],2.0) + pow(y[i]-y[j],2.0));
+}
+
+double distance(double x1, double y1, double x2, double y2){
+    return sqrt(pow(x1-x2,2.0) + pow(y1-y2,2.0));
 }
 
 int max_of_array(int n[], int len){
@@ -190,11 +194,15 @@ int main( int argc , char **argv )
     {
         int i=0;
         int k=0;
+        int l=0;
         double x_FS[700], y_FS[700], rad_FS[700]; //ロボット座標系の点群
         double x_GL[700], y_GL[700], rad_GL[700]; //絶対座標系の点群
-        double dx_FS=0;
-        double dy_FS=0;
-        double dtheta=0;
+        double dx_FS = 0;
+        double dy_FS = 0;
+        double dtheta = 0;
+        double pole_dist = 0;
+        double pole[100][2]={0};
+        double tmp[100][2]={0};
     
         ret = S2Sdd_Begin(&urg_buff, &urg_data); //測位データの取り出し
 
@@ -392,10 +400,12 @@ int main( int argc , char **argv )
                         for(k=(right+(front-right)/2);k<(front+(left-front)/2);k++){
                             if(x_FS[k]>0.5)no_right_wall++;
                         }
-                        printf("GO\n");
-                        ojama_counter = 0;
-                        if(no_right_wall>200)phase++;
+                        if(no_right_wall>100){
+                            printf("GO\n");
+                            ojama_counter = 0;
+                            phase++;
                         Spur_set_pos_GL(0,0,0);
+                        }
                     }
 
                     no_right_wall=0;
@@ -405,9 +415,10 @@ int main( int argc , char **argv )
                 case 5:
                     printf("searching BOTTLES\n");
                     
-                    Spur_line_GL( 1.2, 0.0, 0.0 );
-                    while( !Spur_over_line_GL(1.2, 0.0, 0.0) )
+                    Spur_line_GL( 1.8, 0.0, 0.0 );
+                    while( !Spur_over_line_GL(1.8 - 0.005, 0.0, 0.0) )
                     usleep( 5000 );
+                    Spur_stop();
                     
                     Spur_spin_GL( -M_PI/2 );
                     while( !Spur_near_ang_GL(-M_PI/2, M_PI/18.0) )
@@ -467,20 +478,21 @@ int main( int argc , char **argv )
                 case 7:
                     printf("searching BOTTLES\n");
                     
-                    Spur_line_GL( 1.2, 1.0, -M_PI/2 );
-                    while( !Spur_over_line_GL(1.2, 1.0, -M_PI/2) )
+                    Spur_line_GL( 1.8, -1.2, -M_PI/2 );
+                    while( !Spur_over_line_GL(1.8, -1.2 + 0.005, -M_PI/2) )
                     usleep( 5000 );
+                    Spur_stop();
                     
-                    Spur_spin_GL( -M_PI/2 );
+                    Spur_spin_GL( -M_PI );
                     while( !Spur_near_ang_GL(-M_PI, M_PI/18.0) )
                     usleep( 5000 );
+                    Spur_stop();
                     /*Spur_circle_GL( 1.2, -0.80, -0.5 );
                     while( !Spur_over_line_GL( 1.2, -0.80, -M_PI/2 ) )
                     usleep( 5000 );
                     while( !Spur_over_line_GL( 1.2, -0.80, M_PI ) )
                     usleep( 5000 );
                     */
-                    Spur_stop();
                     phase++;
 
                     break;
@@ -520,11 +532,21 @@ int main( int argc , char **argv )
                         }
                         loop_cnt=0;
                         sum=0;
+                        cloud_bottle->clear();
                         bottle_counter=max_of_array(b_cnt,4);
                     
-                        Spur_line_GL( 0, 1.0, -M_PI );
-                        while( !Spur_over_line_GL(0, 1.0, -M_PI) )
+                        Spur_line_GL( 1.2, -1.2, -M_PI );
+                        while( !Spur_over_line_GL(1.2 + 0.005, -1.2, -M_PI) )
                         usleep( 5000 );
+                        Spur_stop();
+                    
+                        /*Spur_spin_GL( -M_PI*3/2 );
+                        while( !Spur_near_ang_GL(-M_PI*3/2, M_PI/18.0) )
+                        usleep( 5000 );
+                        Spur_stop();*/
+                    
+                        cmd_vel.x = 0;
+                        cmd_vel.w = 0;
                     
                         phase++;
                     
@@ -538,8 +560,93 @@ int main( int argc , char **argv )
                     else
                     printf("There are %d bottles, so GOAL is [B]\n",bottle_counter);
                     
+                    Spur_set_pos_GL(0,0,0);
+                    Spur_stop();
                     cmd_vel.x = 0;
                     cmd_vel.w = 0;
+                    phase++;
+
+                    break;
+                case 10:
+                    bottle_counter=0;
+                    printf("gate\n");
+                    cloud_bottle->clear();
+                    for(k=0;k<cloud_centroid->points.size();k++){
+                        if(cloud_centroid->points[k].x<1.5
+                            && cloud_centroid->points[k].x>0.5 
+                            && cloud_centroid->points[k].y<1.0
+                            && cloud_centroid->points[k].y>-1.0){ 
+                            
+                            pole[bottle_counter][0]=cloud_centroid->points[k].x;
+                            pole[bottle_counter][1]=cloud_centroid->points[k].y;
+
+                            printf("%g  %g\n",pole[bottle_counter][0],pole[bottle_counter][1]);
+                            bottle_counter++;
+                            cloud_bottle->points.push_back(cloud_centroid->points[k]);
+                        }
+                    }
+                    
+                    printf("before:%g,%g\n",pole[0][0],pole[0][1]);
+                    for (k=0;k<2;k++) {
+                        for (l=k+1;l<bottle_counter-1;l++) {
+                            if (pole[k][1] < pole[l][1]) {
+                                tmp[0][1] =  pole[k][1];
+                                tmp[0][0] =  pole[k][0];
+                                pole[k][1] = pole[l][1];
+                                pole[k][0] = pole[l][0];
+                                pole[l][1] = tmp[0][1];
+                                pole[l][0] = tmp[0][0];
+                            }
+                        }
+                    }
+                    
+                    printf("after:%g,%g\n",pole[0][0],pole[0][1]);
+
+                    pole_dist = distance(pole[0][0],pole[0][1],pole[1][0],pole[1][1]);
+                    printf("pole_dist:%g\n",pole_dist);
+
+                    if(pole_dist>0.7 && pole_dist<0.9
+                        && fabs(pole[0][0]-pole[1][0])<0.1){
+                        printf("pole\n");
+                        Spur_line_GL(pole[0][0]+0.3,(pole[0][1]+pole[1][1])/2,0);
+                        while( !Spur_over_line_GL(pole[0][0]+0.3-0.01,(pole[0][1]+pole[1][1])/2,0) )
+                        usleep( 5000 );
+                        Spur_stop();
+                        
+                        phase++;
+                    }
+                        /*for(k=0;k<urg_data->size;k++){
+                        pole_dist  = distance(x_FS,y_FS,min_dist_num,j);
+                        if(pole_dist>0.6 && pole_dist<0.85 && y_FS[k]<0){
+                          x_p1=x_FS[min_dist_num];
+                          y_p1=y_FS[min_dist_num];
+                          x_p2=x_FS[k];
+                          y_p2=y_FS[k];
+                          if(y_p1<y_p2){
+                              tmp = y_p1;
+                              y_p1 = y_p2;
+                              y_p2 = tmp;
+                          }
+                          if(fabs(x_p1+x_p2)/2<0.1 ){
+                              phase++;
+                              Spur_stop();
+                              Spur_set_pos_GL(0,0,0);
+                              break;
+                          }
+                          else if(fabs(y_p1 + y_p2)/2 >= 0.1){
+                          printf("pole_dist = %g\n",pole_dist);
+                              cmd_vel.x = 0;
+                              cmd_vel.w = 0.2*(y_p1 + y_p2)/fabs(y_p1 + y_p2);
+                              break;
+                          }
+                          else if(fabs(y_p1 + y_p2)/2<0.1){
+                          printf("pole_dist = %g\n",pole_dist);
+                              cmd_vel.x = 0.1;
+                              cmd_vel.w = 0.0;
+                              break;
+                          }
+                        }
+                    }*/
 
                     break;
                 default:
@@ -551,9 +658,10 @@ int main( int argc , char **argv )
                     break;
             }
             //std::cout << j << " : " << cloud_cluster->width << std::endl;
-            //viewer.showCloud (cloud_cluster); 
+            //viewer.showCloud (cloud2); 
+            viewer.showCloud (cloud_cluster); 
             //viewer.showCloud (cloud_centroid);   
-            viewer.showCloud (cloud_bottle); 
+            //viewer.showCloud (cloud_bottle); 
 
             if(!debug_laser)Spur_vel(cmd_vel.x, cmd_vel.w);
         }
